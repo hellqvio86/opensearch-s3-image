@@ -11,6 +11,9 @@ on:
 env:
   DOCKER_IMAGE: hellqvio/opensearch-s3
 
+permissions:
+  contents: write
+
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
@@ -51,15 +54,10 @@ jobs:
 
       - name: Create GitHub Release
         if: github.event_name != 'pull_request'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if ! gh release view ${{ env.VERSION }} >/dev/null 2>&1; then
-            echo "Release ${{ env.VERSION }} does not exist. Creating..."
-            gh release create ${{ env.VERSION }} \
-              --title "Release ${{ env.VERSION }}" \
-              --notes "Automated release for OpenSearch version ${{ env.VERSION }} with S3 plugin." \
-              --target ${{ github.sha }}
-          else
-            echo "Release ${{ env.VERSION }} already exists. Skipping."
-          fi
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: Automated release for OpenSearch version ${{ env.VERSION }} with S3 plugin.
+          target_commitish: ${{ github.sha }}
+          token: ${{ secrets.GITHUB_TOKEN }}
