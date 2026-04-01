@@ -17,27 +17,16 @@ permissions:
   contents: write
 
 jobs:
-  build_and_push:
+  check_version_change:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version_changed.outputs.changed }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Docker Hub
-        # Only log in if not a PR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract OpenSearch Version
         id: version
@@ -77,27 +66,46 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Skip build when version is unchanged
-        if: steps.version_changed.outputs.changed != 'true'
-        run: echo "OpenSearch version unchanged; skipping Docker build."
+  build_and_push:
+    needs: check_version_change
+    if: needs.check_version_change.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        # Only log in if not a PR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image
-        if: steps.version_changed.outputs.changed == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ${{ env.DOCKER_IMAGE }}:latest
-            ${{ env.DOCKER_IMAGE }}:${{ env.VERSION }}
+            ${{ env.DOCKER_IMAGE }}:${{ needs.check_version_change.outputs.version }}
           cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
 
       - name: Create GitHub Release
-        if: github.event_name != 'pull_request' && steps.version_changed.outputs.changed == 'true'
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.VERSION }}
+          tag_name: ${{ needs.check_version_change.outputs.version }}
           name: Release ${{ env.VERSION }}
           body: Automated release for OpenSearch version ${{ env.VERSION }} with S3 plugin.
           target_commitish: ${{ github.sha }}
