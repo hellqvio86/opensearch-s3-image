@@ -3,10 +3,12 @@ name: Docker CI
 on:
   push:
     branches: [ "main", "master" ]
+    paths:
+      - Dockerfile
   pull_request:
     branches: [ "main", "master" ]
-  schedule:
-    - cron: '0 0 * * 0' # Weekly build to grab upstream base image updates
+    paths:
+      - Dockerfile
 
 env:
   DOCKER_IMAGE: hellqvio/opensearch-s3
@@ -20,6 +22,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -40,8 +44,45 @@ jobs:
         run: |
           VERSION=$(grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' Dockerfile)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Detect version change
+        id: version_changed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CURRENT_VERSION="${{ steps.version.outputs.version }}"
+          PREVIOUS_VERSION=""
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            BEFORE_SHA="${{ github.event.before }}"
+            if [[ -n "$BEFORE_SHA" ]] && git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+              PREVIOUS_VERSION=$(git show "${BEFORE_SHA}:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
+            fi
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            git fetch origin "${{ github.base_ref }}" --depth=1
+            PREVIOUS_VERSION=$(git show "${BASE_REF}:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
+          fi
+
+          if [[ -z "$PREVIOUS_VERSION" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip build when version is unchanged
+        if: steps.version_changed.outputs.changed != 'true'
+        run: echo "OpenSearch version unchanged; skipping Docker build."
 
       - name: Build and push Docker image
+        if: steps.version_changed.outputs.changed == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -53,7 +94,7 @@ jobs:
           cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
 
       - name: Create GitHub Release
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.version_changed.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION }}
