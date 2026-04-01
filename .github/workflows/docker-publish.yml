@@ -54,6 +54,8 @@ jobs:
             BASE_REF="origin/${{ github.base_ref }}"
             git fetch origin "${{ github.base_ref }}" --depth=1
             PREVIOUS_VERSION=$(git show "${BASE_REF}:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PREVIOUS_VERSION=$(git show "HEAD~1:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
           fi
 
           if [[ -z "$PREVIOUS_VERSION" ]]; then
