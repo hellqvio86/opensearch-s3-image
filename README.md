@@ -4,7 +4,7 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/hellqvio/opensearch-s3)](https://hub.docker.com/r/hellqvio/opensearch-s3/)
 [![Docker Image Version](https://img.shields.io/docker/v/hellqvio/opensearch-s3?sort=semver)](https://hub.docker.com/r/hellqvio/opensearch-s3/tags)
 
-Provides a Docker image for OpenSearch with the `repository-s3` plugin installed by default. This enables native backups and snapshots of OpenSearch clusters to Amazon S3 or S3-compatible endpoints without requiring custom startup scripts or init containers.
+Provides a Docker image for OpenSearch with the `repository-s3` & `telemetry-otel` plugin installed by default. This enables native backups and snapshots of OpenSearch clusters to Amazon S3 or S3-compatible endpoints without requiring custom startup scripts or init containers.
 
 ## Disclaimer
 
