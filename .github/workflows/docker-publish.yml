@@ -5,11 +5,18 @@ on:
     branches: [ "main", "master" ]
     paths:
       - Dockerfile
+
   pull_request:
     branches: [ "main", "master" ]
     paths:
       - Dockerfile
+
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Force build and publish even if version hasn't changed"
+        required: false
+        default: "false"
 
 env:
   DOCKER_IMAGE: hellqvio/opensearch-s3
@@ -20,9 +27,11 @@ permissions:
 jobs:
   check_version_change:
     runs-on: ubuntu-latest
+
     outputs:
       changed: ${{ steps.version_changed.outputs.changed }}
       version: ${{ steps.version.outputs.version }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -50,10 +59,12 @@ jobs:
             if [[ -n "$BEFORE_SHA" ]] && git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
               PREVIOUS_VERSION=$(git show "${BEFORE_SHA}:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
             fi
+
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             BASE_REF="origin/${{ github.base_ref }}"
             git fetch origin "${{ github.base_ref }}" --depth=1
             PREVIOUS_VERSION=$(git show "${BASE_REF}:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
+
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             PREVIOUS_VERSION=$(git show "HEAD~1:Dockerfile" 2>/dev/null | grep -oP '(?<=FROM opensearchproject/opensearch:)[0-9]+\.[0-9]+\.[0-9]+' || true)
           fi
@@ -71,8 +82,11 @@ jobs:
 
   build_and_push:
     needs: check_version_change
-    if: needs.check_version_change.outputs.changed == 'true'
+
+    if: needs.check_version_change.outputs.changed == 'true' || github.event.inputs.force == 'true'
+
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -86,7 +100,6 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        # Only log in if not a PR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
@@ -109,7 +122,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.check_version_change.outputs.version }}
-          name: Release ${{ env.VERSION }}
-          body: Automated release for OpenSearch version ${{ env.VERSION }} with S3 plugin.
+          name: Release ${{ needs.check_version_change.outputs.version }}
+          body: Automated release for OpenSearch version ${{ needs.check_version_change.outputs.version }} with S3 plugin.
           target_commitish: ${{ github.sha }}
           token: ${{ secrets.GITHUB_TOKEN }}
