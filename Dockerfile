@@ -1,4 +1,4 @@
-FROM opensearchproject/opensearch:3.7.0
+FROM opensearchproject/opensearch:3.8.0
 
 RUN /usr/share/opensearch/bin/opensearch-plugin install --batch repository-s3 telemetry-otel
 #RUN curl -L -o /tmp/prometheus.zip \
