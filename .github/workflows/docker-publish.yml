@@ -114,8 +114,8 @@ jobs:
           tags: |
             ${{ env.DOCKER_IMAGE }}:latest
             ${{ env.DOCKER_IMAGE }}:${{ needs.check_version_change.outputs.version }}
-          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache
-          cache-to: type=registry,ref=${{ env.DOCKER_IMAGE }}:buildcache,mode=max
+          cache-from: ${{ github.event_name == 'pull_request' && 'type=gha,scope=opensearch-s3-image-pr' || format('type=registry,ref={0}:buildcache', env.DOCKER_IMAGE) }}
+          cache-to: ${{ github.event_name == 'pull_request' && 'type=gha,mode=max,scope=opensearch-s3-image-pr' || format('type=registry,ref={0}:buildcache,mode=max', env.DOCKER_IMAGE) }}
 
       - name: Create GitHub Release
         if: github.event_name != 'pull_request'
