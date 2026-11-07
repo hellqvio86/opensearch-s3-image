@@ -33,5 +33,6 @@
       "groupSlug": "github-actions",
       "pinDigests": true
     }
-  ]
+  ],
+  "rebaseWhen": "behind-base-branch"
 }
