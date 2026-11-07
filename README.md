@@ -14,6 +14,14 @@ OpenSearch is a trademark of the Linux Foundation. Amazon Web Services (AWS) and
 
 ## Usage
 
+### Pull Image
+
+```bash
+docker pull hellqvio/opensearch-s3:latest
+```
+
+### Docker Compose
+
 This image functions identically to the official OpenSearch image, but the S3 repository plugin is bundled inside.
 
 ```yaml
